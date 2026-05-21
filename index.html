@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DIS Barcode Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #f0f0f0;
+    --text2: #888888;
+    --text3: #555555;
+    --accent: #4ade80;
+    --accent2: #22c55e;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+    --radius: 10px;
+    --radius-sm: 6px;
+
+    /* Responsive spacing */
+    --pad: clamp(10px, 3vw, 20px);
+    --gap: clamp(8px, 2vw, 14px);
+    --font-base: clamp(13px, 2.2vw, 16px);
+    --font-sm: clamp(11px, 1.8vw, 13px);
+    --font-xs: clamp(10px, 1.5vw, 12px);
+    --card-min: clamp(130px, 28vw, 180px);
+    --header-h: clamp(100px, 15vw, 130px);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── HEADER ─────────────────────────────────── */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: var(--pad);
+    padding-bottom: 10px;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .logo-icon {
+    width: clamp(28px, 7vw, 36px);
+    height: clamp(28px, 7vw, 36px);
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(14px, 3.5vw, 18px);
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: clamp(13px, 3.2vw, 16px);
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .logo-sub {
+    font-size: clamp(8px, 1.8vw, 10px);
+    color: var(--text2);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .lang-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+  }
+
+  .lang-btn {
+    font-size: clamp(10px, 2.2vw, 12px);
+    padding: clamp(3px, 0.8vw, 5px) clamp(6px, 1.5vw, 10px);
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text2);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+
+  .lang-btn.active { background: var(--accent); color: #000; }
+
+  .scan-btn {
+    width: clamp(32px, 8vw, 40px);
+    height: clamp(32px, 8vw, 40px);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text);
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .scan-btn svg { width: clamp(15px, 3.5vw, 19px); height: clamp(15px, 3.5vw, 19px); }
+  .scan-btn:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+
+  .search-wrap { position: relative; }
+
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon svg { width: clamp(13px, 3vw, 16px); height: clamp(13px, 3vw, 16px); }
+
+  .search-input {
+    width: 100%;
+    padding: clamp(8px, 2vw, 11px) 36px clamp(8px, 2vw, 11px) 34px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: clamp(13px, 3vw, 15px);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text3); }
+
+  .search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    display: none;
+    line-height: 1;
+  }
+
+  /* ── TABS ───────────────────────────────────── */
+  .tabs-wrap {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs-wrap::-webkit-scrollbar { display: none; }
+
+  .tabs {
+    display: flex;
+    padding: 0 var(--pad);
+    min-width: max-content;
+  }
+
+  .tab {
+    padding: clamp(8px, 2vw, 11px) clamp(10px, 2.5vw, 16px);
+    font-size: clamp(11px, 2.2vw, 13px);
+    font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── FILTER CHIPS ───────────────────────────── */
+  .filters-wrap {
+    padding: clamp(6px, 1.5vw, 10px) var(--pad);
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--border);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filters-wrap::-webkit-scrollbar { display: none; }
+
+  .chip {
+    padding: clamp(4px, 1vw, 6px) clamp(10px, 2.5vw, 14px);
+    border-radius: 100px;
+    font-size: clamp(10px, 2vw, 12px);
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .chip:hover { border-color: var(--text2); color: var(--text); }
+  .chip.active { background: var(--surface2); border-color: var(--text2); color: var(--text); }
+  .chip.using { border-color: var(--accent); color: var(--accent); }
+  .chip.using.active { background: rgba(74,222,128,0.1); }
+  .chip.broken { border-color: var(--red); color: var(--red); }
+  .chip.broken.active { background: rgba(248,113,113,0.1); }
+  .chip.repair { border-color: var(--amber); color: var(--amber); }
+  .chip.repair.active { background: rgba(251,191,36,0.1); }
+  .chip.lost { border-color: var(--purple); color: var(--purple); }
+  .chip.lost.active { background: rgba(167,139,250,0.1); }
+  .chip.standby { border-color: var(--blue); color: var(--blue); }
+  .chip.standby.active { background: rgba(96,165,250,0.1); }
+
+  /* ── MAIN ───────────────────────────────────── */
+  .main {
+    padding: var(--pad);
+    padding-bottom: clamp(60px, 12vw, 100px);
+  }
+
+  /* ── STATES ─────────────────────────────────── */
+  .state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(40px, 10vw, 80px) var(--pad);
+    gap: 12px;
+    text-align: center;
+  }
+
+  .state-icon {
+    width: clamp(50px, 12vw, 70px);
+    height: clamp(50px, 12vw, 70px);
+    border-radius: 50%;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(22px, 5vw, 30px);
+    margin-bottom: 4px;
+  }
+
+  .state-title { font-size: clamp(14px, 3.2vw, 16px); font-weight: 500; color: var(--text); }
+  .state-sub { font-size: clamp(12px, 2.5vw, 14px); color: var(--text2); max-width: min(260px, 80vw); line-height: 1.6; }
+
+  .scan-big-btn {
+    margin-top: 8px;
+    padding: clamp(9px, 2.5vw, 12px) clamp(16px, 4vw, 24px);
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: clamp(12px, 2.8vw, 14px);
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .scan-big-btn:hover { background: var(--accent2); }
+
+  /* ── GRID ───────────────────────────────────── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    gap: var(--gap);
+  }
+
+  /* Tablet: 3+ cols */
+  @media (min-width: 600px) {
+    :root { --card-min: 160px; }
+  }
+
+  /* Desktop: 4–5 cols */
+  @media (min-width: 900px) {
+    :root { --card-min: 180px; }
+  }
+
+  /* Large desktop */
+  @media (min-width: 1200px) {
+    :root { --card-min: 200px; }
+    .main { max-width: 1400px; margin: 0 auto; }
+    .header { max-width: 100%; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .card:hover { border-color: var(--border2); transform: translateY(-1px); }
+  .card:active { transform: scale(0.98); }
+
+  .card-img {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-img img { width: 100%; height: 100%; object-fit: cover; }
+  .card-img .no-img { font-size: clamp(28px, 7vw, 40px); opacity: 0.4; }
+
+  .status-dot {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: clamp(7px, 1.8vw, 9px);
+    height: clamp(7px, 1.8vw, 9px);
+    border-radius: 50%;
+    border: 1.5px solid var(--surface);
+  }
+
+  .sheet-tag {
+    position: absolute;
+    top: 8px; left: 8px;
+    font-size: clamp(8px, 1.6vw, 10px);
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    background: rgba(0,0,0,0.65);
+    color: var(--text2);
+    padding: 2px 5px;
+    border-radius: 3px;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-body { padding: clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 12px) clamp(8px, 2vw, 12px); }
+
+  .card-name {
+    font-size: clamp(11px, 2.2vw, 13px);
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+  }
+
+  .card-brand { font-size: clamp(10px, 1.9vw, 12px); color: var(--text2); }
+
+  /* Status colors */
+  .dot-using { background: var(--accent); }
+  .dot-broken { background: var(--red); }
+  .dot-repair { background: var(--amber); }
+  .dot-lost { background: var(--purple); }
+  .dot-standby { background: var(--blue); }
+  .dot-default { background: var(--text3); }
+
+  .result-bar { display: flex; align-items: center; padding: 0 0 10px; }
+  .result-count { font-size: clamp(10px, 2vw, 12px); font-family: 'IBM Plex Mono', monospace; color: var(--text2); }
+
+  /* ── POPUP ──────────────────────────────────── */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .overlay.active { display: flex; }
+
+  .popup {
+    background: var(--surface);
+    border-radius: 16px 16px 0 0;
+    width: 100%;
+    max-width: min(100%, 640px);
+    max-height: 92dvh;
+    overflow-y: auto;
+    padding: 0 0 env(safe-area-inset-bottom, 20px);
+    padding-bottom: max(env(safe-area-inset-bottom), 24px);
+    animation: slideUp 0.25s ease;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* On tablet/desktop: show as centered modal */
+  @media (min-width: 640px) {
+    .overlay { align-items: center; }
+    .popup {
+      border-radius: 16px;
+      max-height: 85vh;
+      margin: 20px;
+    }
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .popup-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 12px auto 0; }
+
+  @media (min-width: 640px) { .popup-handle { display: none; } }
+
+  .popup-img-area {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+
+  .popup-img-area img { width: 100%; height: 100%; object-fit: contain; }
+  .popup-img-area .no-img-big { opacity: 0.2; font-size: clamp(48px, 12vw, 72px); }
+
+  .popup-body { padding: clamp(12px, 3vw, 20px); }
+
+  .popup-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .popup-name { font-size: clamp(15px, 3.5vw, 19px); font-weight: 600; color: var(--text); line-height: 1.3; flex: 1; }
+
+  .close-btn {
+    width: clamp(26px, 7vw, 32px);
+    height: clamp(26px, 7vw, 32px);
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text2);
+    font-size: clamp(12px, 2.5vw, 15px);
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+
+  .close-btn:hover { background: var(--border2); color: var(--text); }
+
+  .popup-brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .popup-brand { font-size: clamp(12px, 2.5vw, 14px); color: var(--text2); }
+
+  .status-badge { padding: 3px 10px; border-radius: 100px; font-size: clamp(10px, 2vw, 12px); font-weight: 600; }
+  .badge-using { background: rgba(74,222,128,0.15); color: var(--accent); }
+  .badge-broken { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge-repair { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .badge-lost { background: rgba(167,139,250,0.15); color: var(--purple); }
+  .badge-standby { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .badge-default { background: var(--surface2); color: var(--text2); }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+  .info-grid { display: flex; flex-direction: column; }
+
+  .info-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: clamp(8px, 2vw, 11px) 0;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+
+  .info-row:last-child { border-bottom: none; }
+
+  .info-label {
+    font-size: clamp(11px, 2.2vw, 13px);
+    color: var(--text2);
+    flex-shrink: 0;
+    min-width: clamp(100px, 28vw, 140px);
+  }
+
+  .info-value {
+    font-size: clamp(11px, 2.2vw, 13px);
+    color: var(--text);
+    font-weight: 500;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .info-value.mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: clamp(10px, 2vw, 12px);
+    color: var(--accent);
+  }
+
+  .sheet-pill {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: clamp(9px, 1.8vw, 11px);
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border2);
+  }
+
+  /* ── SCANNER ────────────────────────────────── */
+  /* Barcode gun scanner — no overlay needed, scans directly into search box */
+  .scan-ready {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px rgba(74,222,128,0.2);
+  }
+
+  /* ── MISC ───────────────────────────────────── */
+  .spinner {
+    width: clamp(26px, 7vw, 34px);
+    height: clamp(26px, 7vw, 34px);
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .no-results { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: clamp(36px, 10vw, 60px) var(--pad); gap: 8px; text-align: center; }
+
+  .error-banner {
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: rgba(248,113,113,0.1);
+    border: 1px solid rgba(248,113,113,0.3);
+    border-radius: var(--radius-sm);
+    color: var(--red);
+    font-size: clamp(11px, 2.2vw, 13px);
+    display: none;
+  }
+
+  .error-banner.show { display: block; }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Safe area for notched phones */
+  @supports (padding: env(safe-area-inset-bottom)) {
+    .main { padding-bottom: calc(clamp(60px, 12vw, 100px) + env(safe-area-inset-bottom)); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo" onclick="goHome()" style="cursor:pointer">
+      <div class="logo-icon">📦</div>
+      <div>
+        <div class="logo-text" id="logo-text">DIS Barcode Scanner</div>
+        <div class="logo-sub">LIVE · GOOGLE SHEETS</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="lang-toggle">
+        <button class="lang-btn active" onclick="setLang('en')">EN</button>
+        <button class="lang-btn" onclick="setLang('th')">TH</button>
+      </div>
+      <button class="scan-btn" onclick="openScanner()" title="Click then scan with barcode gun">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+          <line x1="7" y1="12" x2="7" y2="12.01"/><line x1="12" y1="7" x2="12" y2="7.01"/>
+          <line x1="12" y1="12" x2="12" y2="12.01"/><line x1="17" y1="12" x2="17" y2="12.01"/>
+          <line x1="12" y1="17" x2="12" y2="17.01"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+    </span>
+    <input type="text" class="search-input" id="search-input"
+      placeholder="Search name, barcode, user..."
+      oninput="onSearchInput(this.value)"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button class="search-clear" id="search-clear" onclick="clearSearch()">✕</button>
+  </div>
+</div>
+
+<div class="tabs-wrap">
+  <div class="tabs" id="tabs-bar">
+    <button class="tab active" data-sheet="all" onclick="switchTab('all',this)" data-en="All" data-th="ทั้งหมด">All</button>
+    <button class="tab" data-sheet="IT" onclick="switchTab('IT',this)" data-en="IT" data-th="IT">IT</button>
+    <button class="tab" data-sheet="DEC_Appliance" onclick="switchTab('DEC_Appliance',this)" data-en="DEC Appliance" data-th="เครื่องใช้ไฟฟ้า DEC">DEC Appliance</button>
+    <button class="tab" data-sheet="DIS_Appliance" onclick="switchTab('DIS_Appliance',this)" data-en="DIS Appliance" data-th="เครื่องใช้ไฟฟ้า DIS">DIS Appliance</button>
+    <button class="tab" data-sheet="Vehicle" onclick="switchTab('Vehicle',this)" data-en="Vehicle" data-th="ยานพาหนะ">Vehicle</button>
+    <button class="tab" data-sheet="Health and Medical Equipment" onclick="switchTab('Health and Medical Equipment',this)" data-en="Health & Medical" data-th="สุขภาพและการแพทย์">Health & Medical</button>
+    <button class="tab" data-sheet="Sport" onclick="switchTab('Sport',this)" data-en="Sport" data-th="กีฬา">Sport</button>
+    <button class="tab" data-sheet="DIS_Kitchen" onclick="switchTab('DIS_Kitchen',this)" data-en="DIS Kitchen" data-th="ครัว DIS">DIS Kitchen</button>
+    <button class="tab" data-sheet="Furniture DEC" onclick="switchTab('Furniture DEC',this)" data-en="Furniture DEC" data-th="เฟอร์นิเจอร์ DEC">Furniture DEC</button>
+    <button class="tab" data-sheet="Furniture DIS" onclick="switchTab('Furniture DIS',this)" data-en="Furniture DIS" data-th="เฟอร์นิเจอร์ DIS">Furniture DIS</button>
+  </div>
+</div>
+
+<div class="filters-wrap" id="filters-wrap" style="display:none"></div>
+
+<div class="main" id="main">
+  <div class="state-box" id="initial-state">
+    <div class="state-icon">🔍</div>
+    <div class="state-title" id="initial-title">Search or scan to find items</div>
+    <div class="state-sub" id="initial-sub">Type a product name, barcode, or username above — or use the camera scanner.</div>
+    <button class="scan-big-btn" onclick="openScanner()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+      </svg>
+      <span id="scan-btn-label">Scan Barcode</span>
+    </button>
+  </div>
+  <div class="error-banner" id="error-banner"></div>
+  <div class="state-box" id="loading-state" style="display:none">
+    <div class="spinner"></div>
+    <div class="state-sub" id="loading-text">Loading...</div>
+  </div>
+  <div class="no-results" id="no-results-state" style="display:none">
+    <div class="state-icon">📭</div>
+    <div class="state-title" id="no-results-title">No items found</div>
+    <div class="state-sub" id="no-results-sub">Try a different search term or barcode</div>
+  </div>
+  <div id="results-area" style="display:none">
+    <div class="result-bar">
+      <span class="result-count" id="result-count"></span>
+    </div>
+    <div class="grid" id="card-grid"></div>
+  </div>
+</div>
+
+<!-- DETAIL POPUP -->
+<div class="overlay" id="detail-overlay" onclick="handleOverlayClick(event)">
+  <div class="popup" id="detail-popup">
+    <div class="popup-handle"></div>
+    <div class="popup-img-area" id="popup-img-area"><span class="no-img-big">📦</span></div>
+    <div class="popup-body">
+      <div class="popup-header-row">
+        <div class="popup-name" id="popup-name">-</div>
+        <button class="close-btn" onclick="closePopup()">✕</button>
+      </div>
+      <div class="popup-brand-row">
+        <span class="popup-brand" id="popup-brand"></span>
+        <span class="status-badge" id="popup-status-badge"></span>
+      </div>
+      <hr class="divider">
+      <div class="info-grid" id="popup-fields"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNER -->
+<!-- No scanner overlay needed - gun scanner types directly into search box -->
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbzWO17Ys0l6DVBlb6saYm1i5krAVZjVjlPD1plCDEAqrKg4-h3nEXWqlWsOOUAdmxw/exec';
+
+const STATUS_MAP = {
+  'ใช้งาน':   { en: 'In Use',    th: 'ใช้งาน',    cls: 'using'   },
+  'ชำรุด':    { en: 'Broken',    th: 'ชำรุด',     cls: 'broken'  },
+  'ซ่อม':     { en: 'Repair',    th: 'ซ่อม',      cls: 'repair'  },
+  'สูญหาย':   { en: 'Lost',      th: 'สูญหาย',    cls: 'lost'    },
+  'Stand-by': { en: 'Stand-by',  th: 'สแตนด์บาย', cls: 'standby' },
+};
+
+const STATUS_FILTERS = [
+  { key: 'all',       en: 'All',      th: 'ทั้งหมด',    cls: ''        },
+  { key: 'ใช้งาน',   en: 'In Use',   th: 'ใช้งาน',    cls: 'using'   },
+  { key: 'ชำรุด',    en: 'Broken',   th: 'ชำรุด',     cls: 'broken'  },
+  { key: 'ซ่อม',     en: 'Repair',   th: 'ซ่อม',      cls: 'repair'  },
+  { key: 'สูญหาย',   en: 'Lost',     th: 'สูญหาย',    cls: 'lost'    },
+  { key: 'Stand-by', en: 'Stand-by', th: 'สแตนด์บาย', cls: 'standby' },
+];
+
+const CONDITION_MAP = {
+  'ปกติ':                              { en: 'Normal',           th: 'ปกติ' },
+  'ชำรุด':                             { en: 'Damaged',          th: 'ชำรุด' },
+  'ใกล้พัง ( ใช้งานเกินกำหนด )':      { en: 'Near End of Life', th: 'ใกล้พัง' },
+  'เลิกใช้งาน':                        { en: 'Discontinued',     th: 'เลิกใช้งาน' },
+};
+
+let currentLang = 'en';
+let currentTab = 'all';
+let currentStatus = 'all';
+let searchQuery = '';
+let searchTimeout = null;
+let lastResults = [];
+
+const L = {
+  en: {
+    logoText: 'DIS Barcode Scanner',
+    initialTitle: 'Search or scan to find items',
+    initialSub: 'Type a product name, barcode, or username — or use the camera scanner.',
+    scanBtnLabel: 'Scan Barcode',
+    scannerText: 'Point camera at barcode',
+    loadingText: 'Fetching data...',
+    noResultsTitle: 'No items found',
+    noResultsSub: 'Try a different search term or barcode',
+    searchPlaceholder: 'Search name, barcode, user...',
+    itemsFound: (n) => `${n} item${n !== 1 ? 's' : ''} found`,
+    fields: {
+      barcode: 'Barcode', serial: 'Serial No.', price: 'Price',
+      date: 'Purchase Date', warranty: 'Warranty', status: 'Status',
+      condition: 'Condition', reference: 'Receipt Ref.',
+      location: 'User / Location', category: 'Category', sheet: 'Department',
+    }
+  },
+  th: {
+    logoText: 'DIS Barcode Scanner',
+    initialTitle: 'ค้นหาหรือสแกนเพื่อดูรายการ',
+    initialSub: 'พิมพ์ชื่อสินค้า บาร์โค้ด หรือชื่อผู้ใช้ — หรือใช้กล้องสแกน',
+    scanBtnLabel: 'สแกนบาร์โค้ด',
+    scannerText: 'ชี้กล้องที่บาร์โค้ด',
+    loadingText: 'กำลังโหลดข้อมูล...',
+    noResultsTitle: 'ไม่พบรายการ',
+    noResultsSub: 'ลองค้นหาด้วยคำอื่น หรือบาร์โค้ดอื่น',
+    searchPlaceholder: 'ค้นหาชื่อ บาร์โค้ด ผู้ใช้...',
+    itemsFound: (n) => `พบ ${n} รายการ`,
+    fields: {
+      barcode: 'บาร์โค้ด', serial: 'หมายเลขซีเรียล', price: 'ราคา',
+      date: 'วันที่บันทึก', warranty: 'การรับประกัน', status: 'สถานะ',
+      condition: 'สภาพ', reference: 'อ้างอิงใบเสร็จ',
+      location: 'ผู้ใช้ / สถานที่', category: 'ประเภท', sheet: 'แผนก',
+    }
+  }
+};
+
+// ── LANG ─────────────────────────────────────────
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.textContent === lang.toUpperCase()));
+  applyLang();
+  renderTabs();
+  renderFilterChips();
+  if (lastResults.length > 0) renderResults();
+}
+
+function applyLang() {
+  const l = L[currentLang];
+  document.getElementById('logo-text').textContent = l.logoText;
+  document.getElementById('initial-title').textContent = l.initialTitle;
+  document.getElementById('initial-sub').textContent = l.initialSub;
+  document.getElementById('scan-btn-label').textContent = l.scanBtnLabel;
+  document.getElementById('scanner-text').textContent = l.scannerText;
+  document.getElementById('loading-text').textContent = l.loadingText;
+  document.getElementById('no-results-title').textContent = l.noResultsTitle;
+  document.getElementById('no-results-sub').textContent = l.noResultsSub;
+  document.getElementById('search-input').placeholder = l.searchPlaceholder;
+}
+
+// ── TABS ──────────────────────────────────────────
+function renderTabs() {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.textContent = t.dataset[currentLang] || t.dataset.en;
+  });
+}
+
+function switchTab(sheet, el) {
+  currentTab = sheet;
+  currentStatus = 'all';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderFilterChips();
+  if (searchQuery) performSearch();
+  else showInitialState();
+}
+
+// ── FILTER CHIPS ──────────────────────────────────
+function renderFilterChips() {
+  const wrap = document.getElementById('filters-wrap');
+  wrap.innerHTML = STATUS_FILTERS.map(s => {
+    const label = s[currentLang] || s.en;
+    const isActive = currentStatus === s.key;
+    return `<button class="chip ${s.cls} ${isActive ? 'active' : ''}" data-key="${s.key}" onclick="setStatusFilter('${s.key}',this)">${label}</button>`;
+  }).join('');
+}
+
+function setStatusFilter(status) {
+  currentStatus = status;
+  renderFilterChips();
+  renderResults();
+}
+
+// ── SEARCH ────────────────────────────────────────
+function onSearchInput(val) {
+  searchQuery = val.trim();
+  document.getElementById('search-clear').style.display = searchQuery ? 'block' : 'none';
+  clearTimeout(searchTimeout);
+  if (!searchQuery) { showInitialState(); return; }
+  searchTimeout = setTimeout(performSearch, 400);
+}
+
+function goHome() {
+  document.getElementById("search-input").value = "";
+  document.getElementById("search-clear").style.display = "none";
+  searchQuery = "";
+  lastResults = [];
+  currentStatus = "all";
+  currentTab = "all";
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelector(".tab[data-sheet=\"all\"]").classList.add("active");
+  renderFilterChips();
+  showInitialState();
+  closePopup();
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  searchQuery = '';
+  lastResults = [];
+  showInitialState();
+}
+
+async function performSearch() {
+  showLoading();
+  hideError();
+  try {
+    const sheetParam = currentTab === 'all' ? 'all' : currentTab;
+    const url = `${API}?action=search&query=${encodeURIComponent(searchQuery)}&sheet=${encodeURIComponent(sheetParam)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (!json.success) throw new Error('API error');
+    lastResults = json.results || [];
+    renderFilterChips();
+
+    // Exact barcode match → show card + auto-open popup
+    if (json.exactMatch && lastResults.length === 1) {
+      showResultsArea();
+      document.getElementById('result-count').textContent = L[currentLang].itemsFound(1);
+      renderCard(lastResults[0]);
+      openDetail(lastResults[0]);
+      return;
+    }
+
+    renderResults();
+  } catch (err) {
+    showError('Could not connect to Google Sheets. Check your connection and try again.');
+    showInitialState();
+  }
+}
+
+// ── RENDER ────────────────────────────────────────
+function getStatusInfo(rawStatus) {
+  if (!rawStatus) return { dotCls: 'dot-default', badgeCls: 'badge-default', label: '-' };
+  if (STATUS_MAP[rawStatus]) {
+    const m = STATUS_MAP[rawStatus];
+    return { dotCls: `dot-${m.cls}`, badgeCls: `badge-${m.cls}`, label: m[currentLang] };
+  }
+  for (const [key, m] of Object.entries(STATUS_MAP)) {
+    if (rawStatus.toLowerCase().includes(key.toLowerCase()))
+      return { dotCls: `dot-${m.cls}`, badgeCls: `badge-${m.cls}`, label: m[currentLang] };
+  }
+  return { dotCls: 'dot-default', badgeCls: 'badge-default', label: rawStatus };
+}
+
+function getItemIcon(item) {
+  const n = (item.name || '').toLowerCase();
+  const s = (item.sheet || '').toLowerCase();
+  if (s.includes('vehicle')) return '🚗';
+  if (s.includes('health') || s.includes('medical')) return '🏥';
+  if (s.includes('sport')) return '⚽';
+  if (s.includes('kitchen')) return '🍳';
+  if (s.includes('furniture')) return '🪑';
+  if (s.includes('appliance')) return '📺';
+  if (n.includes('laptop')||n.includes('notebook')||n.includes('macbook')||n.includes('air m')||n.includes('pro m')) return '💻';
+  if (n.includes('ipad')||n.includes('tablet')) return '📱';
+  if (n.includes('iphone')||n.includes('phone')||n.includes('redmi')) return '📱';
+  if (n.includes('printer')||n.includes('print')) return '🖨️';
+  if (n.includes('monitor')||n.includes('tv')||n.includes('display')||n.includes('led')) return '🖥️';
+  if (n.includes('camera')||n.includes('cctv')) return '📷';
+  if (n.includes('mouse')) return '🖱️';
+  if (n.includes('keyboard')) return '⌨️';
+  if (n.includes('walkie')||n.includes('talkie')) return '📻';
+  if (n.includes('headphone')||n.includes('earphone')) return '🎧';
+  if (n.includes('speaker')||n.includes('ลำโพง')) return '🔊';
+  if (n.includes('conditioner')||n.includes('แอร์')) return '❄️';
+  if (n.includes('washing')||n.includes('ซักผ้า')) return '🧺';
+  if (n.includes('fridge')||n.includes('refrigerator')||n.includes('ตู้เย็น')) return '🧊';
+  if (n.includes('pencil')||n.includes('pen')) return '✏️';
+  if (n.includes('ups')||n.includes('power supply')) return '🔌';
+  return '📦';
+}
+
+function buildCardHTML(item) {
+  const { dotCls } = getStatusInfo(item.status);
+  const icon = getItemIcon(item);
+  const shortSheet = (item.sheet || '').replace('_', ' ').substring(0, 14);
+  return `
+    <div class="card-img">
+      ${item.image && item.image !== 'CellImage'
+        ? `<img src="${item.image}" alt="${item.name||''}" onerror="this.style.display='none'">`
+        : `<span class="no-img">${icon}</span>`}
+      <div class="status-dot ${dotCls}"></div>
+      <div class="sheet-tag">${shortSheet}</div>
+    </div>
+    <div class="card-body">
+      <div class="card-name">${item.name || '(No name)'}</div>
+      ${item.brand ? `<div class="card-brand">${item.brand}</div>` : ''}
+    </div>`;
+}
+
+function renderCard(item) {
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.onclick = () => openDetail(item);
+  card.innerHTML = buildCardHTML(item);
+  grid.appendChild(card);
+}
+
+function renderResults() {
+  const filtered = currentStatus === 'all'
+    ? lastResults
+    : lastResults.filter(item => {
+        const s = item.status || '';
+        if (currentStatus === 'ซ่อม') return s.includes('ซ่อม');
+        return s === currentStatus || s.toLowerCase() === currentStatus.toLowerCase();
+      });
+
+  document.getElementById('filters-wrap').style.display = lastResults.length > 0 ? 'flex' : 'none';
+
+  if (filtered.length === 0) { showNoResults(); return; }
+
+  showResultsArea();
+  document.getElementById('result-count').textContent = L[currentLang].itemsFound(filtered.length);
+
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+  filtered.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.onclick = () => openDetail(item);
+    card.innerHTML = buildCardHTML(item);
+    grid.appendChild(card);
+  });
+}
+
+// ── POPUP ─────────────────────────────────────────
+function openDetail(item) {
+  const l = L[currentLang].fields;
+  const { badgeCls, label: statusLabel } = getStatusInfo(item.status);
+  const icon = getItemIcon(item);
+
+  const imgArea = document.getElementById('popup-img-area');
+  imgArea.innerHTML = (item.image && item.image !== 'CellImage')
+    ? `<img src="${item.image}" alt="${item.name||''}" onerror="this.parentElement.innerHTML='<span class=no-img-big>${icon}</span>'">`
+    : `<span class="no-img-big">${icon}</span>`;
+
+  document.getElementById('popup-name').textContent = item.name || '(No name)';
+  document.getElementById('popup-brand').textContent = item.brand || '';
+
+  const badge = document.getElementById('popup-status-badge');
+  badge.className = `status-badge ${badgeCls}`;
+  badge.textContent = statusLabel;
+
+  const conditionLabel = item.condition
+    ? (CONDITION_MAP[item.condition] ? CONDITION_MAP[item.condition][currentLang] : item.condition)
+    : '';
+
+  const fields = [
+    { label: l.barcode,   value: item.barcode,   mono: true },
+    { label: l.serial,    value: item.serial,    mono: true },
+    { label: l.price,     value: item.price ? `฿${item.price}` : '' },
+    { label: l.date,      value: item.date },
+    { label: l.warranty,  value: item.warranty && item.warranty !== '-' ? item.warranty : '' },
+    { label: l.status,    value: statusLabel },
+    { label: l.condition, value: conditionLabel },
+    { label: l.reference, value: item.reference, mono: true },
+    { label: l.location,  value: item.location },
+    { label: l.category,  value: item.category },
+    { label: l.sheet,     value: item.sheet ? `<span class="sheet-pill">${item.sheet}</span>` : '' },
+  ];
+
+  document.getElementById('popup-fields').innerHTML = fields
+    .filter(f => f.value)
+    .map(f => `
+      <div class="info-row">
+        <span class="info-label">${f.label}</span>
+        <span class="info-value ${f.mono ? 'mono' : ''}">${f.value}</span>
+      </div>`).join('');
+
+  document.getElementById('detail-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePopup() {
+  document.getElementById('detail-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('detail-overlay')) closePopup();
+}
+
+// ── SCANNER ───────────────────────────────────────
+// Barcode gun scanner — works like a keyboard, types barcode + Enter
+// Just keep the search box focused and scan away!
+function openScanner() {
+  // Focus the search box so the gun scanner types into it
+  const input = document.getElementById('search-input');
+  input.focus();
+  input.classList.add('scan-ready');
+  input.placeholder = currentLang === 'th' ? 'พร้อมสแกน... เล็งปืนที่บาร์โค้ด' : 'Ready to scan... aim gun at barcode';
+}
+
+function closeScanner() {
+  const input = document.getElementById('search-input');
+  input.classList.remove('scan-ready');
+  input.placeholder = L[currentLang].searchPlaceholder;
+}
+
+// Listen for Enter key — barcode guns send Enter after scanning
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    const input = document.getElementById('search-input');
+    const val = input.value.trim();
+    if (val) {
+      searchQuery = val;
+      document.getElementById('search-clear').style.display = 'block';
+      closeScanner(); // reset placeholder
+      performSearch();
+    }
+  }
+});
+
+// ── STATE HELPERS ─────────────────────────────────
+function showInitialState() {
+  document.getElementById('initial-state').style.display = 'flex';
+  document.getElementById('loading-state').style.display = 'none';
+  document.getElementById('no-results-state').style.display = 'none';
+  document.getElementById('results-area').style.display = 'none';
+  document.getElementById('filters-wrap').style.display = 'none';
+}
+function showLoading() {
+  document.getElementById('initial-state').style.display = 'none';
+  document.getElementById('loading-state').style.display = 'flex';
+  document.getElementById('no-results-state').style.display = 'none';
+  document.getElementById('results-area').style.display = 'none';
+}
+function showNoResults() {
+  document.getElementById('initial-state').style.display = 'none';
+  document.getElementById('loading-state').style.display = 'none';
+  document.getElementById('no-results-state').style.display = 'flex';
+  document.getElementById('results-area').style.display = 'none';
+}
+function showResultsArea() {
+  document.getElementById('initial-state').style.display = 'none';
+  document.getElementById('loading-state').style.display = 'none';
+  document.getElementById('no-results-state').style.display = 'none';
+  document.getElementById('results-area').style.display = 'block';
+}
+function showError(msg) {
+  const b = document.getElementById('error-banner');
+  b.textContent = msg;
+  b.classList.add('show');
+}
+function hideError() { document.getElementById('error-banner').classList.remove('show'); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closePopup(); closeScanner(); document.getElementById('search-input').blur(); }
+});
+
+// Init
+applyLang();
+renderTabs();
+renderFilterChips();
+</script>
+</body>
+</html>

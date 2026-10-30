@@ -125,3 +125,101 @@ test('doGet returns success:false JSON when the sheet throws', () => {
   assert.equal(out.success, false);
   assert.match(out.error, /boom/);
 });
+
+// ── Task 3: cached items endpoint ───────────────────────────────────────────
+
+/** Two-sheet fake spreadsheet that counts getDataRange() reads. */
+function fakeBook(sheetDefs) {
+  const state = { reads: 0 };
+  const sheets = {};
+  Object.keys(sheetDefs).forEach(name => {
+    const rows = sheetDefs[name];
+    sheets[name] = {
+      getName: () => name,
+      getDataRange: () => {
+        state.reads++;
+        return { getValues: () => rows };
+      },
+    };
+  });
+  return {
+    state,
+    book: {
+      getSheetByName: (n) => sheets[n] || null,
+      getSheets: () => Object.keys(sheets).map(n => sheets[n]),
+    },
+  };
+}
+
+const twoSheets = () => fakeBook({
+  IT: [
+    ['Barcode', 'Name'],
+    ['DEC20010100001', 'Chair'],
+    ['DEC20010100002', 'Table'],
+  ],
+  Sport: [
+    ['Barcode', 'Name'],
+    ['SP-01', 'Ball'],
+    ['SP-02', 'Bike'],
+  ],
+});
+
+test('splitChunks round-trips', () => {
+  const { ctx } = makeContext();
+  const s = 'x'.repeat(200001);
+  const c = plain(ctx.splitChunks(s, 90000));
+  assert.equal(c.length, 3);
+  assert.equal(c.join(''), s);
+});
+
+test('items action returns flat array from all sheets', () => {
+  const { book } = twoSheets();
+  const { ctx } = makeContext({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
+  const out = plain(JSON.parse(ctx.doGet({ parameter: { action: 'items' } }).body));
+  assert.equal(out.success, true);
+  assert.equal(out.items.length, 4);
+  assert.ok(out.updatedAt);
+  assert.equal(out.items[0].id, 'IT:2');
+});
+
+test('second call is served from cache (sheet not read again)', () => {
+  const { book, state } = twoSheets();
+  const { ctx } = makeContext({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
+  ctx.doGet({ parameter: { action: 'items' } });
+  assert.equal(state.reads, 2);
+  ctx.doGet({ parameter: { action: 'items' } });
+  assert.equal(state.reads, 2);
+});
+
+test('onEdit clears cache so next call re-reads', () => {
+  const { book, state } = twoSheets();
+  const { ctx } = makeContext({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
+  ctx.doGet({ parameter: { action: 'items' } });
+  assert.equal(state.reads, 2);
+  ctx.onEdit({});
+  ctx.doGet({ parameter: { action: 'items' } });
+  assert.equal(state.reads, 4);
+});
+
+test('missing chunk falls back to rebuilding', () => {
+  const big = { IT: [['Barcode', 'Name']] };
+  for (let i = 0; i < 3000; i++) {
+    big.IT.push(['DEC' + String(10000000000 + i), 'Item ' + i + ' ' + 'x'.repeat(120)]);
+  }
+  const { book, state } = fakeBook(big);
+  const { ctx, cache } = makeContext({ SpreadsheetApp: { getActiveSpreadsheet: () => book } });
+
+  const first = plain(JSON.parse(ctx.doGet({ parameter: { action: 'items' } }).body));
+  assert.equal(first.items.length, 3000);
+  assert.equal(state.reads, 1);
+
+  const meta = JSON.parse(cache.get('items_v1_meta'));
+  assert.ok(meta.chunks > 1, 'expected more than one cache chunk');
+  cache.remove('items_v1_1');
+
+  const second = plain(JSON.parse(ctx.doGet({ parameter: { action: 'items' } }).body));
+  assert.equal(second.success, true);
+  assert.equal(second.items.length, 3000);
+  assert.equal(state.reads, 2, 'cache miss must re-read the sheets');
+});
+

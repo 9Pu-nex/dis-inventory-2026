@@ -132,6 +132,8 @@ function doGet(e) {
     let result;
     if (action === 'search') {
       result = searchItems(query, sheet);
+    } else if (action === 'items') {
+      result = Object.assign({ success: true }, getItemsCached());
     } else if (action === 'getSheets') {
       result = { sheets: SHEETS };
     } else {
@@ -301,3 +303,98 @@ function logHeaders() {
     }));
   });
 }
+
+// ── Cached flat item list (`?action=items`) ─────────────────────────────────
+// The payload is gzipped, base64-encoded and split into <90k-char chunks
+// because a script cache entry holds at most 100 KB.
+
+const ITEMS_CACHE_PREFIX = 'items_v1';
+const ITEMS_CACHE_META = 'items_v1_meta';
+const ITEMS_CACHE_TTL = 1800;        // seconds
+const ITEMS_CACHE_CHUNK = 90000;     // chars per cache entry
+
+function splitChunks(str, size) {
+  const out = [];
+  for (let i = 0; i < str.length; i += size) {
+    out.push(str.slice(i, i + size));
+  }
+  return out.length ? out : [''];
+}
+
+function getItemsCached() {
+  const cache = CacheService.getScriptCache();
+  const metaRaw = cache.get(ITEMS_CACHE_META);
+
+  if (metaRaw) {
+    try {
+      const meta = JSON.parse(metaRaw);
+      const count = meta.chunks || 0;
+      const keys = [];
+      for (let i = 0; i < count; i++) keys.push(ITEMS_CACHE_PREFIX + '_' + i);
+      const parts = keys.length ? cache.getAll(keys) : {};
+
+      let complete = count > 0;
+      const pieces = [];
+      for (let i = 0; i < count; i++) {
+        const piece = parts[keys[i]];
+        if (piece === undefined || piece === null || piece === '') {
+          complete = false;
+          break;
+        }
+        pieces.push(piece);
+      }
+
+      if (complete) {
+        const gzBlob = Utilities.newBlob(Utilities.base64Decode(pieces.join('')), 'application/x-gzip');
+        const payload = JSON.parse(Utilities.ungzip(gzBlob).getDataAsString('UTF-8'));
+        if (payload && payload.items) {
+          return { updatedAt: payload.updatedAt, items: payload.items };
+        }
+      }
+    } catch (err) {
+      // Corrupt or unreadable cache — fall through and rebuild.
+    }
+  }
+
+  return buildItemsCache();
+}
+
+function buildItemsCache() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const items = [];
+
+  SHEETS.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return;
+    readSheet(sheet, sheetName).forEach(item => items.push(item));
+  });
+
+  const updatedAt = new Date().toISOString();
+  const json = JSON.stringify({ updatedAt: updatedAt, items: items });
+
+  const cache = CacheService.getScriptCache();
+  const gzBlob = Utilities.gzip(Utilities.newBlob(json, 'application/json'));
+  const encoded = Utilities.base64Encode(gzBlob.getBytes());
+  const chunks = splitChunks(encoded, ITEMS_CACHE_CHUNK);
+
+  const values = {};
+  for (let i = 0; i < chunks.length; i++) {
+    values[ITEMS_CACHE_PREFIX + '_' + i] = chunks[i];
+  }
+  cache.putAll(values, ITEMS_CACHE_TTL);
+  // Meta is written last so a half-written cache is never read.
+  cache.put(ITEMS_CACHE_META, JSON.stringify({ chunks: chunks.length, updatedAt: updatedAt }), ITEMS_CACHE_TTL);
+
+  return { updatedAt: updatedAt, items: items };
+}
+
+/** Drop the meta key; orphaned chunks expire on their own. */
+function clearItemsCache() {
+  CacheService.getScriptCache().remove(ITEMS_CACHE_META);
+}
+
+/** Simple installable/simple trigger: a sheet edit invalidates the cache. */
+function onEdit(e) {
+  clearItemsCache();
+}
+

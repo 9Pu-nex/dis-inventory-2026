@@ -10,18 +10,31 @@ const SHEETS = [
   'Furniture DIS'
 ];
 
-// Image column index per sheet (A=0, B=1, ... N=13, O=14)
-const IMAGE_COL = {
-  'IT':                           14,  // Column O
-  'DEC_Appliance':                13,  // Column N
-  'DIS_Appliance':                13,  // Column N
-  'Vehicle':                      13,  // Column N
-  'Health and Medical Equipment': 13,  // Column N
-  'Sport':                        13,  // Column N
-  'DIS_Kitchen':                  13,  // Column N
-  'Furniture DEC':                14,  // Column O
-  'Furniture DIS':                13,  // Column N
+// Fallback image column index per sheet (A=0, B=1, ... N=13, O=14).
+// Only used when no header resolves to the image field.
+const IMAGE_COL_FALLBACK = {
+  'IT': 14,             // Column O
+  'Furniture DEC': 14,  // Column O
 };
+const IMAGE_COL_FALLBACK_DEFAULT = 13; // Column N
+
+// Column mapping table: field -> candidate header keys, in priority order.
+// Each field claims at most one column and never reuses a claimed one.
+const FIELD_KEYS = [
+  ['barcode',   ['barcode', 'เลขครุภัณฑ์', 'เลขบาร์']],
+  ['serial',    ['serial', 'ซีเรียล']],
+  ['warranty',  ['รับประกัน', 'warranty']],
+  ['location',  ['สถานที่', 'location', 'ผู้ใช้']],
+  ['name',      ['ชื่อครุภัณฑ์', 'name', 'ชื่อ']],
+  ['brand',     ['ยี่ห้อ', 'brand']],
+  ['price',     ['ราคา', 'price']],
+  ['date',      ['วันที่', 'date', 'วัน']],
+  ['status',    ['สถานะ', 'status']],
+  ['condition', ['สภาพ', 'condition']],
+  ['reference', ['อ้างอิง', 'reference']],
+  ['category',  ['ประเภท', 'category', 'สังกัด']],
+  ['image',     ['รูป', 'image', 'photo', 'picture']],
+];
 
 // Convert ANY Google Drive URL format to a direct image URL
 function convertDriveUrl(url) {
@@ -68,24 +81,71 @@ function convertDriveUrl(url) {
   return url;
 }
 
+/**
+ * Resolve every field to exactly one header index (or -1).
+ * Three passes over unclaimed headers: exact match, then startsWith, then
+ * includes. In each pass the candidate keys are tried in FIELD_KEYS order.
+ * @param {Array} headers raw header row
+ * @return {Object<string, number>} field -> column index (-1 when unmapped)
+ */
+function buildColumnMap(headers) {
+  const norm = headers.map(h => String(h === null || h === undefined ? '' : h).trim().toLowerCase());
+  const claimed = {};
+  const map = {};
+
+  const match = (pass, key) => {
+    for (let i = 0; i < norm.length; i++) {
+      if (claimed[i]) continue;
+      const h = norm[i];
+      if (!h) continue;
+      if (pass === 0 && h === key) return i;
+      if (pass === 1 && h.startsWith(key)) return i;
+      if (pass === 2 && h.includes(key)) return i;
+    }
+    return -1;
+  };
+
+  FIELD_KEYS.forEach(entry => {
+    const field = entry[0];
+    const keys = entry[1];
+    let idx = -1;
+    for (let pass = 0; pass < 3 && idx === -1; pass++) {
+      for (let k = 0; k < keys.length; k++) {
+        idx = match(pass, keys[k].toLowerCase());
+        if (idx !== -1) break;
+      }
+    }
+    if (idx !== -1) claimed[idx] = true;
+    map[field] = idx;
+  });
+
+  return map;
+}
+
 function doGet(e) {
-  const params = e.parameter;
-  const action = params.action || 'getAll';
-  const query = (params.query || '').trim();
-  const sheet = params.sheet || 'all';
+  try {
+    const params = (e && e.parameter) || {};
+    const action = params.action || 'getAll';
+    const query = (params.query || '').trim();
+    const sheet = params.sheet || 'all';
 
-  let result;
-  if (action === 'search') {
-    result = searchItems(query, sheet);
-  } else if (action === 'getSheets') {
-    result = { sheets: SHEETS };
-  } else {
-    result = getAllItems(sheet);
+    let result;
+    if (action === 'search') {
+      result = searchItems(query, sheet);
+    } else if (action === 'getSheets') {
+      result = { sheets: SHEETS };
+    } else {
+      result = getAllItems(sheet);
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getAllItems(sheetFilter) {
@@ -138,87 +198,106 @@ function searchItems(query, sheetFilter) {
 function readSheet(sheet, sheetName) {
   const rows = sheet.getDataRange().getValues();
   if (rows.length < 2) return [];
-  const headers = rows[0].map(h => String(h).trim().toLowerCase());
-  const imageColIdx = IMAGE_COL[sheetName] !== undefined ? IMAGE_COL[sheetName] : -1;
+
+  const colMap = buildColumnMap(rows[0]);
+  if (!colMap.image || colMap.image === -1) {
+    colMap.image = IMAGE_COL_FALLBACK[sheetName] !== undefined
+      ? IMAGE_COL_FALLBACK[sheetName]
+      : IMAGE_COL_FALLBACK_DEFAULT;
+  }
+
+  const barcodeCol = colMap.barcode;
+  const headerBarcode = (barcodeCol >= 0 && barcodeCol < rows[0].length)
+    ? String(rows[0][barcodeCol] === null || rows[0][barcodeCol] === undefined ? '' : rows[0][barcodeCol]).trim().toLowerCase()
+    : '';
+
   const items = [];
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (row.every(cell => cell === '' || cell === null || cell === undefined)) continue;
-    const item = mapRow(headers, row, sheetName, imageColIdx);
+
+    // Skip header rows embedded inside the data range
+    if (barcodeCol >= 0 && barcodeCol < row.length) {
+      const cellBarcode = String(row[barcodeCol] === null || row[barcodeCol] === undefined ? '' : row[barcodeCol]).trim().toLowerCase();
+      if (cellBarcode && cellBarcode === 'barcode') continue;
+      if (cellBarcode && headerBarcode && cellBarcode === headerBarcode) continue;
+    }
+
+    const item = mapRow(row, colMap, sheetName, i + 1);
     if (!item.barcode && !item.name) continue;
     items.push(item);
   }
   return items;
 }
 
-function mapRow(headers, row, sheetName, imageColIdx) {
-  const get = (keys) => {
-    for (const key of keys) {
-      const idx = headers.findIndex(h => h.includes(key));
-      if (idx !== -1 && row[idx] !== '' && row[idx] !== null && row[idx] !== undefined) {
-        return String(row[idx]).trim();
-      }
-    }
-    return '';
-  };
+function formatDateValue(val) {
+  if (val === '' || val === null || val === undefined) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  if (typeof val === 'number' && val > 40000) {
+    const date = new Date((val - 25569) * 86400 * 1000);
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  }
+  return String(val).trim();
+}
 
-  const formatDate = (val) => {
-    if (!val) return '';
-    if (val instanceof Date) {
-      return Utilities.formatDate(val, Session.getScriptTimeZone(), 'dd/MM/yyyy');
-    }
-    if (typeof val === 'number' && val > 40000) {
-      const date = new Date((val - 25569) * 86400 * 1000);
-      return Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd/MM/yyyy');
-    }
+function formatPriceValue(val) {
+  if (val === '' || val === null || val === undefined) return '';
+  const num = parseFloat(String(val).replace(/,/g, ''));
+  if (isNaN(num)) return '';
+  return num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+/**
+ * Map one sheet row to an Item. Reads exactly row[colMap[field]] and never
+ * falls back to another column when a cell is empty.
+ */
+function mapRow(row, colMap, sheetName, rowNumber) {
+  const raw = (field) => {
+    const idx = colMap ? colMap[field] : -1;
+    if (idx === undefined || idx === null || idx < 0 || idx >= row.length) return '';
+    return row[idx];
+  };
+  const text = (field) => {
+    const val = raw(field);
+    if (val === '' || val === null || val === undefined) return '';
     return String(val).trim();
   };
 
-  const dateRaw = (() => {
-    const keys = ['วันที่', 'date', 'วัน'];
-    for (const key of keys) {
-      const idx = headers.findIndex(h => h.includes(key));
-      if (idx !== -1 && row[idx] !== '' && row[idx] !== null) return row[idx];
-    }
-    return '';
-  })();
-
-  const priceRaw = (() => {
-    const keys = ['ราคา', 'price'];
-    for (const key of keys) {
-      const idx = headers.findIndex(h => h.includes(key));
-      if (idx !== -1 && row[idx] !== '' && row[idx] !== null) {
-        const val = parseFloat(String(row[idx]).replace(/,/g, ''));
-        return isNaN(val) ? '' : val.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-      }
-    }
-    return '';
-  })();
-
-  // Read image from fixed column, convert any Drive URL format
-  let imageUrl = '';
-  if (imageColIdx >= 0 && imageColIdx < row.length) {
-    const rawImg = row[imageColIdx];
-    if (rawImg && typeof rawImg === 'string' && rawImg.trim() !== '') {
-      imageUrl = convertDriveUrl(rawImg.trim());
-    }
-  }
+  const rawImage = text('image');
 
   return {
+    id:        sheetName + ':' + rowNumber,
     sheet:     sheetName,
-    barcode:   get(['barcode', 'เลขครุภัณฑ์', 'เลขบาร์']),
-    name:      get(['ชื่อครุภัณฑ์', 'name', 'ชื่อ']),
-    brand:     get(['ยี่ห้อ', 'brand']),
-    serial:    get(['serial', 'ซีเรียล']),
-    price:     priceRaw,
-    date:      formatDate(dateRaw),
-    warranty:  get(['รับประกัน', 'warranty']),
-    status:    get(['สถานะ', 'status']),
-    condition: get(['สภาพ', 'condition']),
-    reference: get(['อ้างอิง', 'reference']),
-    location:  get(['สถานที่', 'location', 'ผู้ใช้']),
-    image:     imageUrl,
-    category:  get(['ประเภท', 'category', 'สังกัด']),
+    barcode:   text('barcode'),
+    name:      text('name'),
+    brand:     text('brand'),
+    serial:    text('serial'),
+    price:     formatPriceValue(raw('price')),
+    date:      formatDateValue(raw('date')),
+    warranty:  text('warranty'),
+    status:    text('status'),
+    condition: text('condition'),
+    reference: text('reference'),
+    location:  text('location'),
+    category:  text('category'),
+    image:     rawImage ? convertDriveUrl(rawImage) : '',
   };
+}
+
+/** Diagnostic helper: log every sheet's headers and its resolved column map. */
+function logHeaders() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  ss.getSheets().forEach(sheet => {
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows.length ? rows[0] : [];
+    Logger.log(JSON.stringify({
+      sheet: sheet.getName(),
+      rows: Math.max(rows.length - 1, 0),
+      headers: headers.map(h => String(h === null || h === undefined ? '' : h).trim()),
+      map: buildColumnMap(headers),
+    }));
+  });
 }

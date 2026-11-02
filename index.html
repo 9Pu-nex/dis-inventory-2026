@@ -74,6 +74,11 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Any author `display` rule would otherwise defeat `el.hidden = true`
+     (the placeholder emoji stayed visible behind the photo, the empty
+     image button stayed clickable). */
+  [hidden] { display: none !important; }
+
   html { -webkit-text-size-adjust: 100%; }
 
   body {

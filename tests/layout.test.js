@@ -40,3 +40,15 @@ test('card thumbnail fills its square box', () => {
 test('card icon stays centred when the image is absent', () => {
   assert.match(ruleBody('.card-img .no-img'), /position:\s*absolute/);
 });
+
+// `el.hidden = true` only works while no author rule sets `display` on that
+// element. Both `.detail-img-placeholder` and `.detail-img-btn` now do, so the
+// footprint emoji stayed painted behind the photo (looks like a watermark) and
+// the empty button stayed clickable.
+test('the hidden attribute always wins over display rules', () => {
+  assert.match(
+    html,
+    /\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/,
+    'a global [hidden] { display: none !important } rule is required',
+  );
+});

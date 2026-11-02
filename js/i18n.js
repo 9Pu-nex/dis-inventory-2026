@@ -37,9 +37,12 @@ export const STRINGS = {
 
     sortLabel: 'Sort',
     sortRelevance: 'Relevance',
-    sortName: 'Name',
-    sortDate: 'Date',
-    sortStatus: 'Status',
+    sortNameAsc: 'Name A→Z',
+    sortNameDesc: 'Name Z→A',
+    sortDateNewest: 'Newest first',
+    sortDateOldest: 'Oldest first',
+    sortStatusAsc: 'Status order',
+    sortStatusDesc: 'Status reversed',
 
     dashboardTitle: 'Browse everything',
     dashboardStatus: 'By status',
@@ -103,9 +106,12 @@ export const STRINGS = {
 
     sortLabel: 'เรียงตาม',
     sortRelevance: 'ความเกี่ยวข้อง',
-    sortName: 'ชื่อ',
-    sortDate: 'วันที่',
-    sortStatus: 'สถานะ',
+    sortNameAsc: 'ชื่อ ก→ฮ',
+    sortNameDesc: 'ชื่อ ฮ→ก',
+    sortDateNewest: 'วันที่ ใหม่สุดก่อน',
+    sortDateOldest: 'วันที่ เก่าสุดก่อน',
+    sortStatusAsc: 'สถานะ ตามลำดับ',
+    sortStatusDesc: 'สถานะ ย้อนลำดับ',
 
     dashboardTitle: 'ดูทั้งหมด',
     dashboardStatus: 'ตามสถานะ',

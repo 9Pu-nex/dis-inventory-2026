@@ -8,6 +8,8 @@
  *   image:string }} Item
  */
 
+import { STATUS_ORDER } from './i18n.js';
+
 /** Lowercase and strip spaces and punctuation so formatting never blocks a match. */
 export function normalize(value) {
   return String(value ?? '')
@@ -135,4 +137,44 @@ export function countBy(items, keyFn) {
     out[key] = (out[key] || 0) + 1;
   });
   return out;
+}
+
+/** Thai-aware name comparison, used as primary or tie-break order. */
+function byName(a, b) {
+  return String(a.name || '').localeCompare(String(b.name || ''), 'th');
+}
+
+/**
+ * Order a list without mutating it.
+ *
+ * @param {Item[]} items
+ * @param {string} mode '' (= keep the incoming order, i.e. search relevance) or
+ *   '<field>-<dir>' with field ∈ name|date|status and dir ∈ asc|desc.
+ * @returns {Item[]}
+ */
+export function sortItems(items, mode = '') {
+  const list = (items || []).slice();
+  const [field, dir] = String(mode || '').split('-');
+  const flip = dir === 'desc' ? -1 : 1;
+
+  if (field === 'name') {
+    list.sort((a, b) => byName(a, b) * flip);
+  } else if (field === 'date') {
+    list.sort((a, b) => {
+      const da = parseDate(a.date);
+      const db = parseDate(b.date);
+      if (da === null && db === null) return byName(a, b);
+      if (da === null) return 1;   // undated items stay last in both directions
+      if (db === null) return -1;
+      return (da - db) * flip;
+    });
+  } else if (field === 'status') {
+    list.sort((a, b) => {
+      const ia = STATUS_ORDER.indexOf(statusKey(a.status));
+      const ib = STATUS_ORDER.indexOf(statusKey(b.status));
+      if (ia !== ib) return (ia - ib) * flip;
+      return byName(a, b);         // tie-break stays alphabetical
+    });
+  }
+  return list;                     // unknown field → incoming order preserved
 }

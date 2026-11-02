@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  normalize, statusKey, parseDate, escapeHTML, safeImageUrl, searchItems, countBy,
+  normalize, statusKey, parseDate, escapeHTML, safeImageUrl, searchItems, countBy, sortItems,
 } from '../js/search.js';
 import { STRINGS, STATUS, CONDITION, SHEETS } from '../js/i18n.js';
 
@@ -90,4 +90,53 @@ test('i18n parity', () => {
   assert.deepEqual(Object.keys(STATUS.using).sort(), ['en', 'th']);
   assert.deepEqual(Object.keys(CONDITION).length > 0, true);
   assert.equal(SHEETS.length, 9);
+});
+
+const sortable = [
+  { id: 'old',  name: 'bbb', date: '19/03/2020', status: 'ชำรุด' },   // 2020-03-19, broken
+  { id: 'new',  name: 'ccc', date: '01/08/2566', status: 'ใช้งาน' },  // 2023-08-01, using
+  { id: 'none', name: 'aaa', date: '',           status: '' },        // no date, no status
+];
+const sortIds = (list) => list.map((i) => i.id);
+
+test('name sort ascends and descends', () => {
+  assert.deepEqual(sortIds(sortItems(sortable, 'name-asc')), ['none', 'old', 'new']);
+  assert.deepEqual(sortIds(sortItems(sortable, 'name-desc')), ['new', 'old', 'none']);
+});
+
+test('date sort: desc = newest first, asc = oldest first, undated always last', () => {
+  assert.deepEqual(sortIds(sortItems(sortable, 'date-desc')), ['new', 'old', 'none']);
+  assert.deepEqual(sortIds(sortItems(sortable, 'date-asc')), ['old', 'new', 'none']);
+});
+
+test('status sort follows STATUS_ORDER forwards and backwards', () => {
+  // STATUS_ORDER = using, broken, repair, lost, standby, other, none
+  assert.deepEqual(sortIds(sortItems(sortable, 'status-asc')), ['new', 'old', 'none']);
+  assert.deepEqual(sortIds(sortItems(sortable, 'status-desc')), ['none', 'old', 'new']);
+});
+
+test('empty mode leaves the incoming order untouched (relevance)', () => {
+  assert.deepEqual(sortIds(sortItems(sortable, '')), ['old', 'new', 'none']);
+  assert.equal(sortItems(sortable, 'name-asc').length, 3);
+});
+
+test('unknown mode falls back to the incoming order and never throws', () => {
+  assert.deepEqual(sortIds(sortItems(sortable, 'bogus-xyz')), ['old', 'new', 'none']);
+  assert.deepEqual(sortItems([], 'name-asc'), []);
+});
+
+test('sorting does not mutate the input array', () => {
+  const before = sortIds(sortable);
+  sortItems(sortable, 'name-desc');
+  assert.deepEqual(sortIds(sortable), before);
+});
+
+test('status sort keeps same-key items alphabetical in both directions', () => {
+  // 'ปกติ' and 'ใช้งาน' are both statusKey 'using'; the tie-break must not flip.
+  const same = [
+    { id: 'b', name: 'bbb', date: '', status: 'ใช้งาน' },
+    { id: 'a', name: 'aaa', date: '', status: 'ปกติ' },
+  ];
+  assert.deepEqual(sortIds(sortItems(same, 'status-asc')), ['a', 'b']);
+  assert.deepEqual(sortIds(sortItems(same, 'status-desc')), ['a', 'b']);
 });

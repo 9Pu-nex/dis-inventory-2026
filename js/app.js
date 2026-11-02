@@ -1,5 +1,5 @@
 import { loadItems, readCache } from './data.js';
-import { statusKey, parseDate, safeImageUrl, countBy, searchItems } from './search.js';
+import { statusKey, safeImageUrl, countBy, searchItems, sortItems } from './search.js';
 import { STRINGS, STATUS, STATUS_ORDER, CONDITION, SHEETS, sheetLabel } from './i18n.js';
 
 const PAGE_SIZE = 60;
@@ -310,47 +310,25 @@ function renderDashboard() {
 
 /* ── Sorting ────────────────────────────────────────────────────────────── */
 
-function byName(a, b) {
-  return String(a.name || '').localeCompare(String(b.name || ''), 'th');
-}
-
-function sortResults(list) {
-  const mode = state.sort || (state.query ? 'relevance' : 'name');
-  const arr = list.slice();
-  if (mode === 'name') {
-    arr.sort(byName);
-  } else if (mode === 'date') {
-    arr.sort((a, b) => {
-      const da = parseDate(a.date);
-      const db = parseDate(b.date);
-      if (da === null && db === null) return byName(a, b);
-      if (da === null) return 1;
-      if (db === null) return -1;
-      return db - da;
-    });
-  } else if (mode === 'status') {
-    arr.sort((a, b) => {
-      const ia = STATUS_ORDER.indexOf(statusKey(a.status));
-      const ib = STATUS_ORDER.indexOf(statusKey(b.status));
-      if (ia !== ib) return ia - ib;
-      return byName(a, b);
-    });
-  }
-  return arr;
-}
-
 function renderSortOptions() {
   const select = $('sort-select');
-  const current = state.sort;
+  const options = [
+    ['',            t('sortRelevance')],
+    ['name-asc',    t('sortNameAsc')],
+    ['name-desc',   t('sortNameDesc')],
+    ['date-desc',   t('sortDateNewest')],
+    ['date-asc',    t('sortDateOldest')],
+    ['status-asc',  t('sortStatusAsc')],
+    ['status-desc', t('sortStatusDesc')],
+  ];
   select.replaceChildren();
-  [['', t('sortRelevance')], ['name', t('sortName')], ['date', t('sortDate')], ['status', t('sortStatus')]]
-    .forEach(([value, label]) => {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      select.appendChild(option);
-    });
-  select.value = current;
+  options.forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+  select.value = state.sort;
   select.setAttribute('aria-label', t('sortLabel'));
 }
 
@@ -472,7 +450,8 @@ function renderResults({ append = false } = {}) {
     sheet: state.sheet,
     status: state.status,
   });
-  state.sorted = sortResults(results);
+  const sortMode = state.sort || (state.query ? '' : 'name-asc');
+  state.sorted = sortItems(results, sortMode);
 
   $('result-count').textContent = state.hasData ? t('itemsFound')(state.sorted.length) : '';
 

@@ -373,10 +373,18 @@ function auditSheets() {
     }));
   });
 
-  const extras = ss.getSheets()
-    .map(s => ({ name: s.getName(), rows: Math.max(s.getDataRange().getValues().length - 1, 0) }))
-    .filter(s => SHEETS.indexOf(s.name) === -1);
-  Logger.log(JSON.stringify({ notReadByApp: extras }));
+  const inventory = ss.getSheets().map(s => ({
+    name: s.getName(),
+    rows: Math.max(s.getLastRow() - 1, 0),
+    hidden: s.isSheetHidden(),
+    readByApp: SHEETS.indexOf(s.getName()) !== -1,
+  }));
+  Logger.log(JSON.stringify({
+    spreadsheet: ss.getName(),
+    url: ss.getUrl(),
+    totalSheets: inventory.length,
+    inventory: inventory,
+  }));
 }
 
 

@@ -128,3 +128,41 @@ test('readCache tolerates garbage', () => {
   const broken = { getItem: () => 'not json', setItem: () => {}, removeItem: () => {} };
   assert.equal(readCache(broken), null);
 });
+
+// `?api=` lets the app point at a staging/proxy backend without editing code.
+test('?api= relative path overrides the endpoint', async () => {
+  globalThis.location = { search: '?api=/api' };
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(url); return { ok: true, json: async () => payload }; };
+  try {
+    await loadItems({ storage: fakeStorage(), fetchImpl, now: () => NOW });
+  } finally {
+    delete globalThis.location;
+  }
+  assert.equal(calls[0], '/api?action=items');
+});
+
+test('?api= absolute url is used verbatim', async () => {
+  globalThis.location = { search: '?api=https%3A%2F%2Fexample.test%2Fexec' };
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(url); return { ok: true, json: async () => payload }; };
+  try {
+    await loadItems({ storage: fakeStorage(), fetchImpl, now: () => NOW });
+  } finally {
+    delete globalThis.location;
+  }
+  assert.equal(calls[0], 'https://example.test/exec?action=items');
+});
+
+test('?api= with a query string is left alone', async () => {
+  globalThis.location = { search: '?api=%2Fapi%3Faction%3Ditems%26sheet%3DIT' };
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(url); return { ok: true, json: async () => payload }; };
+  try {
+    await loadItems({ storage: fakeStorage(), fetchImpl, now: () => NOW });
+  } finally {
+    delete globalThis.location;
+  }
+  assert.equal(calls[0], '/api?action=items&sheet=IT');
+});
+

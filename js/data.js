@@ -17,10 +17,26 @@ function defaultStorage() {
   }
 }
 
+/** `?api=<url>` points the app at a staging backend or a local proxy. */
+function apiOverrideFrom(search) {
+  try {
+    const value = new URLSearchParams(search).get('api');
+    if (!value) return '';
+    const trimmed = value.trim();
+    if (!/^(https?:\/\/|\/)/.test(trimmed)) return '';
+    return trimmed.includes('?') ? trimmed : `${trimmed}?action=items`;
+  } catch (err) {
+    return '';
+  }
+}
+
 function resolveUrl(url) {
   if (url) return url;
   const loc = globalThis.location;
-  if (loc && String(loc.search || '').includes('mock=1')) return MOCK_URL;
+  const search = loc ? String(loc.search || '') : '';
+  if (search.includes('mock=1')) return MOCK_URL;
+  const override = apiOverrideFrom(search);
+  if (override) return override;
   return `${API_URL}?action=items`;
 }
 

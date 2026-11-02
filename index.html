@@ -394,8 +394,8 @@
     overflow: hidden;
   }
 
-  .card-img img { width: 100%; height: 100%; object-fit: cover; }
-  .card-img .no-img { font-size: 30px; opacity: .45; }
+  .card-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card-img .no-img { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; opacity: .45; }
 
   .status-dot {
     position: absolute;
@@ -589,10 +589,35 @@
     margin: auto;
   }
 
-  .detail-img-wrap { position: relative; aspect-ratio: 16/9; background: var(--surface2); display: grid; place-items: center; overflow: hidden; }
-  .detail-img-wrap img { width: 100%; height: 100%; object-fit: contain; }
-  .detail-img-btn { border: none; background: none; padding: 0; cursor: zoom-in; display: block; width: 100%; height: 100%; }
-  .detail-img-placeholder { font-size: 46px; opacity: .3; }
+  .detail-img-wrap {
+    position: relative;
+    aspect-ratio: 16/9;
+    min-height: 160px;          /* fallback for engines without aspect-ratio */
+    background: var(--surface2);
+    overflow: hidden;
+  }
+  .detail-img-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  .detail-img-btn {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: zoom-in;
+  }
+  .detail-img-placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 46px;
+    opacity: .3;
+    pointer-events: none;
+  }
+
 
   .detail-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .detail-head { display: flex; align-items: flex-start; gap: 12px; }

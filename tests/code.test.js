@@ -126,6 +126,56 @@ test('doGet returns success:false JSON when the sheet throws', () => {
   assert.match(out.error, /boom/);
 });
 
+// Real headers captured from the live spreadsheet (logHeaders, 2026-11-02).
+const FURNITURE_DIS_HEADERS = [
+  'No', 'Barcode', 'Brand', 'Name', 'Serial Number', 'ราคา', 'วันที่บันทึก', 'รับประกัน',
+  'สังกัด', 'สภาพ', 'อ้างอิง', 'อายุการใช้งาน', 'สถานที่เก็บหรือผู้ใช้', 'Image',
+];
+
+test('Furniture DIS real headers map name and barcode correctly', () => {
+  const { ctx } = makeContext();
+  const map = ctx.buildColumnMap(FURNITURE_DIS_HEADERS);
+  const m = plain(map);
+  assert.equal(m.barcode, 1);
+  assert.equal(m.name, 3);
+  assert.equal(m.status, -1, 'Furniture DIS has no status column');
+  assert.equal(m.image, 13);
+
+  const item = plain(ctx.mapRow(
+    ['2', 'DIS23031300002', '', 'Wall mounted whiteboard 120x240cm', '', '1000', '01/01/2024', '',
+      'DIS', 'ปกติ', '', '', 'Stone', ''],
+    map, 'Furniture DIS', 3,
+  ));
+  assert.equal(item.name, 'Wall mounted whiteboard 120x240cm');
+  assert.match(item.barcode, /^D(EC|IS)\d+$/);
+  assert.equal(item.location, 'Stone');
+});
+
+test('IT real headers keep the Thai columns straight', () => {
+  const { ctx } = makeContext();
+  const headers = ['No', 'Barcode', 'Brand', 'Name', 'Serial Number', 'ราคา', 'วันที่บันทึก',
+    'รับประกัน', 'สังกัด', 'สถานะ', 'สภาพ', 'อ้างอิง', 'อายุการใช้งาน', 'สถานที่เก็บหรือผู้ใช้', 'Image', ''];
+  const m = plain(ctx.buildColumnMap(headers));
+  assert.equal(m.barcode, 1);
+  assert.equal(m.name, 3);
+  assert.equal(m.warranty, 7, 'warranty must not steal the date column');
+  assert.equal(m.date, 6, 'date must not steal warranty');
+  assert.equal(m.location, 13, 'location must not steal the barcode/user column');
+  assert.equal(m.category, 8);
+  assert.equal(m.status, 9);
+  assert.equal(m.condition, 10);
+  assert.equal(m.image, 14);
+});
+
+test('classifyRow flags blank and embedded header rows', () => {
+  const { ctx } = makeContext();
+  const map = ctx.buildColumnMap(FURNITURE_DIS_HEADERS);
+  assert.equal(ctx.classifyRow(['', '', ''], map, 'barcode'), 'blank');
+  assert.equal(ctx.classifyRow(['1', 'Barcode', 'Name'], map, 'barcode'), 'header');
+  assert.equal(ctx.classifyRow(['1', 'DIS23031300002', 'Chair'], map, 'barcode'), 'ok');
+});
+
+
 // ── Task 3: cached items endpoint ───────────────────────────────────────────
 
 /** Two-sheet fake spreadsheet that counts getDataRange() reads. */

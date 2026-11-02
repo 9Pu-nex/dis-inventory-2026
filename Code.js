@@ -197,6 +197,23 @@ function searchItems(query, sheetFilter) {
   return { success: true, results, exactMatch: false };
 }
 
+/**
+ * Decide whether a data row should be skipped before mapping.
+ * @return {'ok'|'blank'|'header'}
+ */
+function classifyRow(row, colMap, headerBarcode) {
+  if (row.every(cell => cell === '' || cell === null || cell === undefined)) return 'blank';
+
+  const barcodeCol = colMap ? colMap.barcode : -1;
+  if (barcodeCol >= 0 && barcodeCol < row.length) {
+    const raw = row[barcodeCol];
+    const cellBarcode = String(raw === null || raw === undefined ? '' : raw).trim().toLowerCase();
+    if (cellBarcode && cellBarcode === 'barcode') return 'header';
+    if (cellBarcode && headerBarcode && cellBarcode === headerBarcode) return 'header';
+  }
+  return 'ok';
+}
+
 function readSheet(sheet, sheetName) {
   const rows = sheet.getDataRange().getValues();
   if (rows.length < 2) return [];
@@ -217,14 +234,7 @@ function readSheet(sheet, sheetName) {
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    if (row.every(cell => cell === '' || cell === null || cell === undefined)) continue;
-
-    // Skip header rows embedded inside the data range
-    if (barcodeCol >= 0 && barcodeCol < row.length) {
-      const cellBarcode = String(row[barcodeCol] === null || row[barcodeCol] === undefined ? '' : row[barcodeCol]).trim().toLowerCase();
-      if (cellBarcode && cellBarcode === 'barcode') continue;
-      if (cellBarcode && headerBarcode && cellBarcode === headerBarcode) continue;
-    }
+    if (classifyRow(row, colMap, headerBarcode) !== 'ok') continue;
 
     const item = mapRow(row, colMap, sheetName, i + 1);
     if (!item.barcode && !item.name) continue;
@@ -303,6 +313,72 @@ function logHeaders() {
     }));
   });
 }
+
+/**
+ * Diagnostic helper: why rows are missing from the app.
+ * Logs, per configured sheet: kept rows, skipped rows (with reason and a sample),
+ * and any sheet in the file that the app does not read at all.
+ * Run from the Apps Script editor — no deploy needed.
+ */
+function auditSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  SHEETS.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      Logger.log(JSON.stringify({ sheet: sheetName, missing: true }));
+      return;
+    }
+
+    const rows = sheet.getDataRange().getValues();
+    const colMap = buildColumnMap(rows[0] || []);
+    const barcodeCol = colMap.barcode;
+    const headerBarcode = (barcodeCol >= 0 && barcodeCol < (rows[0] || []).length)
+      ? String(rows[0][barcodeCol] === null || rows[0][barcodeCol] === undefined ? '' : rows[0][barcodeCol]).trim().toLowerCase()
+      : '';
+
+    let kept = 0;
+    const skipped = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const verdict = classifyRow(row, colMap, headerBarcode);
+      if (verdict !== 'ok') {
+        skipped.push({ row: i + 1, why: verdict });
+        continue;
+      }
+      const item = mapRow(row, colMap, sheetName, i + 1);
+      if (!item.barcode && !item.name) {
+        skipped.push({
+          row: i + 1,
+          why: 'no barcode and no name',
+          sample: row.slice(0, 6).map(v => String(v === null || v === undefined ? '' : v).slice(0, 24)),
+        });
+        continue;
+      }
+      if (!item.name) {
+        skipped.push({ row: i + 1, why: 'empty name (kept, shows as No name)', barcode: item.barcode });
+        kept++;
+        continue;
+      }
+      kept++;
+    }
+
+    Logger.log(JSON.stringify({
+      sheet: sheetName,
+      dataRows: Math.max(rows.length - 1, 0),
+      kept: kept,
+      skippedCount: skipped.length,
+      skipped: skipped.slice(0, 15),
+    }));
+  });
+
+  const extras = ss.getSheets()
+    .map(s => ({ name: s.getName(), rows: Math.max(s.getDataRange().getValues().length - 1, 0) }))
+    .filter(s => SHEETS.indexOf(s.name) === -1);
+  Logger.log(JSON.stringify({ notReadByApp: extras }));
+}
+
 
 // ── Cached flat item list (`?action=items`) ─────────────────────────────────
 // The payload is gzipped, base64-encoded and split into <90k-char chunks
